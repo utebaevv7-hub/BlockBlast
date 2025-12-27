@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Block Blast Compact Epic</title>
+    <style>
+        :root {
+            --bg: #030712;
+            --cell-size: 38px;
+            --danger: #ef4444;
+            --primary: #6366f1;
+        }
+
+        body {
+            background: radial-gradient(circle at center, #111827, #030712);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        .credits {
+            position: fixed;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.3);
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        #game-over {
+            position: fixed; inset: 0; z-index: 6000;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0, 0, 0, 0.92); backdrop-filter: blur(15px);
+            padding: 20px;
+        }
+
+        .over-text {
+            font-size: 1.8rem;
+            font-weight: 900; color: var(--danger);
+            text-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+            animation: shake 0.5s infinite;
+            text-align: center; margin-bottom: 10px;
+        }
+
+        #main-menu {
+            position: fixed; inset: 0; z-index: 5000;
+            display: flex; align-items: center; justify-content: center;
+            background: #030712; padding: 20px;
+        }
+
+        .menu-card { text-align: center; width: 100%; max-width: 300px; }
+
+        .logo {
+            font-size: 2.2rem;
+            font-weight: 900;
+            background: linear-gradient(45deg, #6366f1, #fb7185);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            margin-bottom: 1.5rem;
+        }
+
+        .settings {
+            margin: 20px 0;
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 15px;
+        }
+
+        .settings label {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            color: #94a3b8;
+        }
+
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        #game-container { display: none; flex-direction: column; align-items: center; width: 100%; max-width: 350px; }
+        #score { font-size: 2.2rem; font-weight: 900; margin-bottom: 8px; }
+
+        #board {
+            display: grid; grid-template-columns: repeat(8, var(--cell-size));
+            grid-template-rows: repeat(8, var(--cell-size));
+            gap: 4px; background: rgba(255,255,255,0.05);
+            padding: 8px; border-radius: 12px;
+        }
+
+        .cell { width: var(--cell-size); height: var(--cell-size); background: #1f2937; border-radius: 5px; }
+        .cell.filled { animation: drop 0.2s ease-out; box-shadow: inset 0 2px 4px rgba(255,255,255,0.2); }
+
+        #tray { display: flex; gap: 8px; margin-top: 20px; height: 90px; }
+        .shape-slot { width: 85px; height: 85px; background: rgba(255,255,255,0.03); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+
+        .clearing-epic { animation: epicExplode 0.4s forwards; }
+        @keyframes epicExplode {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.2); filter: brightness(3); }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #6366f1, #a855f7);
+            color: white; border: none; padding: 12px 30px;
+            border-radius: 25px; font-weight: 800; cursor: pointer; font-size: 1rem;
+            box-shadow: 0 8px 15px rgba(99, 102, 241, 0.3);
+            transition: 0.2s;
+        }
+
+        #drag-ghost { position: fixed; pointer-events: none; z-index: 10000; display: none; transform: scale(0.85); }
+        .block-unit { width: var(--cell-size); height: var(--cell-size); border-radius: 5px; }
+        
+        @keyframes shake { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+    </style>
+</head>
+<body>
+
+    <div class="credits">&copy; Бейбарыс тарапынан жасалды</div>
+
+    <div id="game-over">
+        <div class="over-text">Сіз жеңілдіңіз!</div>
+        <p id="final-score" style="font-size: 1.2rem; margin: 10px 0;">Счет: 0</p>
+        <button class="btn" onclick="location.reload()">Қайта бастау</button>
+    </div>
+
+    <div id="main-menu">
+        <div class="menu-card">
+            <div class="logo">BLOCK BLAST</div>
+            
+            <div class="settings">
+                <label id="vol-label">Дыбыс деңгейі: 50%</label>
+                <input type="range" id="volume-control" min="0" max="100" value="50">
+            </div>
+
+            <button class="btn" onclick="start()">Бастау</button>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <div id="score">0</div>
+        <div id="board"></div>
+        <div id="tray">
+            <div class="shape-slot" id="slot-0" data-idx="0"></div>
+            <div class="shape-slot" id="slot-1" data-idx="1"></div>
+            <div class="shape-slot" id="slot-2" data-idx="2"></div>
+        </div>
+    </div>
+
+    <div id="drag-ghost"></div>
+
+    <script>
+        const audioPlace = new Audio('puk.mp3');
+        const audioBG = new Audio('backgroundmusic.mp3');
+        const audioClear = new Audio('qatartolu.mp3');
+        const audioGameOver = new Audio('gameover.mp3'); 
+        
+        let globalVolume = 0.5;
+        const volControl = document.getElementById('volume-control');
+        const volLabel = document.getElementById('vol-label');
+
+        volControl.addEventListener('input', (e) => {
+            globalVolume = e.target.value / 100;
+            volLabel.innerText = `Дыбыс деңгейі: ${e.target.value}%`;
+            updateAllVolumes();
+        });
+
+        function updateAllVolumes() {
+            audioBG.volume = globalVolume * 0.4;
+            audioPlace.volume = globalVolume;
+            audioClear.volume = globalVolume;
+            audioGameOver.volume = globalVolume;
+        }
+
+        audioBG.loop = true;
+
+        const GRID = 8;
+        let score = 0;
+        let boardState = Array(GRID).fill().map(() => Array(GRID).fill(null));
+        let trayShapes = [null, null, null];
+        
+        const SHAPES = [
+            { m: [[1,1,1,1]], c: 'linear-gradient(135deg, #22d3ee, #0891b2)' },
+            { m: [[1,1],[1,1]], c: 'linear-gradient(135deg, #fb7185, #e11d48)' },
+            { m: [[1,1,1],[0,1,0]], c: 'linear-gradient(135deg, #fbbf24, #d97706)' },
+            { m: [[1,1,1]], c: 'linear-gradient(135deg, #34d399, #059669)' },
+            { m: [[1,0],[1,0],[1,1]], c: 'linear-gradient(135deg, #818cf8, #4f46e5)' }
+        ];
+
+        function start() {
+            updateAllVolumes();
+            audioBG.play().catch(() => {});
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('game-container').style.display = 'flex';
+            renderBoard();
+            fillTray();
+            setupEvents();
+        }
+
+        function renderBoard() {
+            const b = document.getElementById('board');
+            b.innerHTML = '';
+            for(let r=0; r<GRID; r++) {
+                for(let c=0; c<GRID; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell'; cell.id = `c-${r}-${c}`;
+                    b.appendChild(cell);
+                }
+            }
+        }
+
+        function fillTray() {
+            trayShapes = trayShapes.map(() => SHAPES[Math.floor(Math.random()*SHAPES.length)]);
+            [0,1,2].forEach(i => renderShapeInTray(i));
+            checkGameOver();
+        }
+
+        function renderShapeInTray(i) {
+            const slot = document.getElementById(`slot-${i}`);
+            slot.innerHTML = '';
+            if(!trayShapes[i]) return;
+            const shape = trayShapes[i];
+            const grid = document.createElement('div');
+            grid.style.display = 'grid'; grid.style.gap = '2px';
+            grid.style.gridTemplateColumns = `repeat(${shape.m[0].length}, 16px)`;
+            shape.m.flat().forEach(v => {
+                const u = document.createElement('div');
+                u.style.width = '16px'; u.style.height = '16px'; u.style.borderRadius = '2px';
+                if(v) u.style.background = shape.c;
+                grid.appendChild(u);
+            });
+            slot.appendChild(grid);
+        }
+
+        let activeIdx = null;
+        function setupEvents() {
+            document.querySelectorAll('.shape-slot').forEach(slot => {
+                slot.addEventListener('pointerdown', e => {
+                    activeIdx = slot.dataset.idx;
+                    if(!trayShapes[activeIdx]) return;
+                    const shape = trayShapes[activeIdx];
+                    const ghost = document.getElementById('drag-ghost');
+                    ghost.innerHTML = '';
+                    const grid = document.createElement('div');
+                    grid.style.display = 'grid'; grid.style.gap = '4px';
+                    grid.style.gridTemplateColumns = `repeat(${shape.m[0].length}, 38px)`;
+                    shape.m.flat().forEach(v => {
+                        const u = document.createElement('div');
+                        u.className = 'block-unit';
+                        if(v) u.style.background = shape.c; else u.style.opacity = '0';
+                        grid.appendChild(u);
+                    });
+                    ghost.appendChild(grid);
+                    ghost.style.display = 'block';
+                    updateGhost(e.clientX, e.clientY);
+                    slot.style.opacity = '0.2';
+                });
+            });
+
+            window.addEventListener('pointermove', e => { if(activeIdx !== null) updateGhost(e.clientX, e.clientY); });
+            window.addEventListener('pointerup', e => {
+                if(activeIdx === null) return;
+                const ghost = document.getElementById('drag-ghost');
+                const rect = ghost.getBoundingClientRect();
+                const el = document.elementFromPoint(rect.left + 19, rect.top + 19);
+                if(el && el.id.startsWith('c-')) {
+                    const [_, r, c] = el.id.split('-').map(Number);
+                    if(place(activeIdx, r, c)) {
+                        audioPlace.currentTime = 0; audioPlace.play();
+                    }
+                }
+                document.getElementById(`slot-${activeIdx}`).style.opacity = '1';
+                ghost.style.display = 'none';
+                activeIdx = null;
+            });
+        }
+
+        function updateGhost(x, y) {
+            const ghost = document.getElementById('drag-ghost');
+            ghost.style.left = (x - ghost.offsetWidth / 2) + 'px';
+            ghost.style.top = (y - ghost.offsetHeight - 20) + 'px';
+        }
+
+        function place(idx, r, c) {
+            const shape = trayShapes[idx];
+            if(!canPlace(shape, r, c)) return false;
+            shape.m.forEach((row, ri) => {
+                row.forEach((v, ci) => {
+                    if(v) {
+                        boardState[r+ri][c+ci] = shape.c;
+                        const cell = document.getElementById(`c-${r+ri}-${c+ci}`);
+                        cell.style.background = shape.c;
+                        cell.classList.add('filled');
+                    }
+                });
+            });
+            trayShapes[idx] = null;
+            score += 10;
+            checkLines();
+            if(trayShapes.every(s => s === null)) fillTray();
+            else { renderShapeInTray(idx); checkGameOver(); }
+            document.getElementById('score').innerText = score;
+            return true;
+        }
+
+        function canPlace(shape, r, c) {
+            for(let ri=0; ri<shape.m.length; ri++) {
+                for(let ci=0; ci<shape.m[0].length; ci++) {
+                    if(shape.m[ri][ci]) {
+                        if(r+ri >= GRID || c+ci >= GRID || boardState[r+ri][c+ci]) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function checkLines() {
+            let rClear = [], cClear = [];
+            for(let i=0; i<GRID; i++) {
+                if(boardState[i].every(v => v)) rClear.push(i);
+                let col = true;
+                for(let j=0; j<GRID; j++) if(!boardState[j][i]) col = false;
+                if(col) cClear.push(i);
+            }
+            if(rClear.length || cClear.length) {
+                audioClear.currentTime = 0; audioClear.play();
+                score += (rClear.length + cClear.length) * 100;
+                rClear.forEach(r => { for(let c=0; c<GRID; c++) triggerClear(r, c); });
+                cClear.forEach(c => { for(let r=0; r<GRID; r++) triggerClear(r, c); });
+            }
+        }
+
+        function triggerClear(r, c) {
+            const el = document.getElementById(`c-${r}-${c}`);
+            el.classList.add('clearing-epic');
+            setTimeout(() => {
+                boardState[r][c] = null;
+                el.style.background = '';
+                el.classList.remove('filled', 'clearing-epic');
+            }, 400);
+        }
+
+        function checkGameOver() {
+            const remaining = trayShapes.filter(s => s !== null);
+            if (remaining.length === 0) return;
+            let can = false;
+            for (let s of remaining) {
+                for (let r = 0; r < GRID; r++) {
+                    for (let c = 0; c < GRID; c++) {
+                        if (canPlace(s, r, c)) { can = true; break; }
+                    }
+                    if (can) break;
+                }
+                if (can) break;
+            }
+            if (!can) {
+                setTimeout(() => {
+                    audioBG.pause();
+                    audioGameOver.play();
+                    document.getElementById('game-over').style.display = 'flex';
+                    document.getElementById('final-score').innerText = `Счет: ${score}`;
+                }, 800);
+            }
+        }
+    </script>
+</body>
+</html>
